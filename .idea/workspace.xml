@@ -4,33 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="4ec3bb7d-8db3-4545-a3cd-c63d997ba69b" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/.idea/airport_visualizer.iml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/profiles_settings.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/assets/baggage_tractor.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/assets/catering_truck.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/assets/followme.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/assets/fuel_truck.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/assets/passenger_gangway.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/assets/plane.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/route_dispatcher.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/test1.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/test2.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/test3.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/vehicles/baggage_tractor.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/vehicles/bus.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/vehicles/catering_truck.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/vehicles/followme.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/vehicles/fuel_truck.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/vehicles/passenger_gangway.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/vehicles/plane.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/vehicles/vehicle.py" afterDir="false" />
-    </list>
+    <list default="true" id="4ec3bb7d-8db3-4545-a3cd-c63d997ba69b" name="Changes" comment="1" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -88,6 +62,23 @@
       <option name="presentableId" value="Default" />
       <updated>1741682707975</updated>
     </task>
+    <task id="LOCAL-00001" summary="1">
+      <option name="closed" value="true" />
+      <created>1741901626281</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1741901626281</updated>
+    </task>
+    <task id="LOCAL-00002" summary="1">
+      <option name="closed" value="true" />
+      <created>1741901684906</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1741901684906</updated>
+    </task>
+    <option name="localTasksCounter" value="3" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -100,6 +91,10 @@
         </entry>
       </map>
     </option>
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="1" />
+    <option name="LAST_COMMIT_MESSAGE" value="1" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
