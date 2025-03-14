@@ -4,7 +4,22 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="4ec3bb7d-8db3-4545-a3cd-c63d997ba69b" name="Changes" comment="1" />
+    <list default="true" id="4ec3bb7d-8db3-4545-a3cd-c63d997ba69b" name="Changes" comment="1">
+      <change afterPath="$PROJECT_DIR$/assets/point_check.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/POINT.txt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/WAY.txt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/graf.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/points.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/to_create_way2.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/ways.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/assets/map.png" beforeDir="false" afterPath="$PROJECT_DIR$/assets/map.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/route_dispatcher.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/test1.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/test2.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/test3.py" beforeDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -20,6 +35,20 @@
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
+  <component name="GitHubPullRequestSearchHistory"><![CDATA[{
+  "lastFilter": {
+    "state": "OPEN",
+    "assignee": "FunguyOFdeath"
+  }
+}]]></component>
+  <component name="GithubPullRequestsUISettings">
+    <option name="selectedUrlAndAccountId">
+      <UrlAndAccount>
+        <option name="accountId" value="094a1ca5-8c61-4500-8d9b-34e0a771bab6" />
+        <option name="url" value="https://github.com/FunguyOFdeath/airport_visualizer" />
+      </UrlAndAccount>
+    </option>
+  </component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 4
 }</component>
@@ -32,10 +61,14 @@
   <component name="PropertiesComponent"><![CDATA[{
   "keyToString": {
     "Python.data.executor": "Run",
+    "Python.graf.executor": "Run",
     "Python.main.executor": "Run",
+    "Python.point_check.executor": "Run",
+    "Python.route_dispatcher.executor": "Run",
     "Python.test1.executor": "Run",
     "Python.test2.executor": "Run",
     "Python.test3.executor": "Run",
+    "Python.to_create_way2.executor": "Run",
     "Python.view_only.executor": "Run",
     "RunOnceActivity.OpenProjectViewOnStart": "true",
     "RunOnceActivity.ShowReadmeOnStart": "true"
@@ -43,6 +76,8 @@
 }]]></component>
   <component name="RecentsManager">
     <key name="MoveFile.RECENT_KEYS">
+      <recent name="C:\Users\ChernyshevAY\PycharmProjects\airport_visualizer" />
+      <recent name="C:\Users\ChernyshevAY\PycharmProjects\airport_visualizer\data" />
       <recent name="C:\Users\ChernyshevAY\PycharmProjects\airport_visualizer\assets" />
     </key>
   </component>
@@ -78,7 +113,15 @@
       <option name="project" value="LOCAL" />
       <updated>1741901684906</updated>
     </task>
-    <option name="localTasksCounter" value="3" />
+    <task id="LOCAL-00003" summary="1">
+      <option name="closed" value="true" />
+      <created>1741901707943</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1741901707943</updated>
+    </task>
+    <option name="localTasksCounter" value="4" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -95,16 +138,5 @@
   <component name="VcsManagerConfiguration">
     <MESSAGE value="1" />
     <option name="LAST_COMMIT_MESSAGE" value="1" />
-  </component>
-  <component name="XDebuggerManager">
-    <breakpoint-manager>
-      <breakpoints>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/test1.py</url>
-          <line>1</line>
-          <option name="timeStamp" value="1" />
-        </line-breakpoint>
-      </breakpoints>
-    </breakpoint-manager>
   </component>
 </project>

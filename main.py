@@ -1,76 +1,98 @@
-import pygame
-import sys
-from vehicles.plane import Plane
+from collections import deque
+from points import points
+from ways import ways
 
-def main():
-    pygame.init()
-    screen = pygame.display.set_mode((1280, 720))
-    pygame.display.set_caption("Airport Visualizer - Plane Movement")
-    clock = pygame.time.Clock()
+# Построение неориентированного графа из списка путей
+graph = {}
+for way in ways:
+    a = way['p1']
+    b = way['p2']
+    if a not in graph:
+        graph[a] = []
+    if b not in graph:
+        graph[b] = []
+    graph[a].append(b)
+    graph[b].append(a)
 
-    # Загрузка карты и самолёта
-    map_img = pygame.image.load("assets/map.png").convert()
-    plane_img = pygame.image.load("assets/plane.png").convert_alpha()
 
-    # Масштабирование самолёта, чтобы его размер не превышал размеры взлётной полосы (например, 100x100)
-    max_width, max_height = 100, 100
-    plane_rect = plane_img.get_rect()
-    if plane_rect.width > max_width or plane_rect.height > max_height:
-        plane_img = pygame.transform.scale(plane_img, (max_width, max_height))
+def bfs_path(start, end, graph):
+    """
+    Поиск в ширину (BFS) для нахождения пути от start до end.
+    Возвращает список точек, представляющих путь, или None, если путь не найден.
+    """
+    queue = deque([start])
+    visited = {start}
+    prev = {start: None}
 
-    # Определение маршрутов (примерные координаты, подберите под вашу карту)
-    # Маршрут приземления: от RW-1 (взлётно-посадочная полоса) через E-37, RE-1, E-38, PCR-5 до парковки P-5
-    landing_route = [
-        (200, 50),    # RW-1 (начало полосы)
-        (300, 50),    # E-37
-        (400, 100),   # RE-1
-        (500, 150),   # E-38
-        (600, 200),   # PCR-5
-        (650, 250)    # P-5 (парковка)
-    ]
+    while queue:
+        current = queue.popleft()
+        if current == end:
+            break
+        for neighbor in graph.get(current, []):
+            if neighbor not in visited:
+                visited.add(neighbor)
+                prev[neighbor] = current
+                queue.append(neighbor)
 
-    # Маршрут взлёта: обратный путь от парковки P-5 до RW-1
-    takeoff_route = [
-        (650, 250),   # P-5 (начало маршрута взлёта)
-        (600, 200),   # PCR-5
-        (500, 150),   # E-38
-        (400, 100),   # RE-1
-        (300, 50),    # E-37
-        (200, 50)     # RW-1
-    ]
+    if end not in prev:
+        return None
 
-    # В режиме FLYING самолёт летит по вектору (dx, dy) – например, вправо
-    flying_vector = (1, 0)
+    # Восстанавливаем путь, идя от end к start
+    path = []
+    cur = end
+    while cur is not None:
+        path.append(cur)
+        cur = prev[cur]
+    path.reverse()
+    return path
 
-    # Создаем объект Plane с маршрутом приземления и взлёта
-    plane = Plane(image=plane_img, landing_route=landing_route, takeoff_route=takeoff_route, flying_vector=flying_vector, speed=2)
 
-    while True:
-        clock.tick(60)
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-                sys.exit()
+def find_way_edge(p1, p2, ways):
+    """
+    Ищет в списке ways связь между двумя точками p1 и p2.
+    Возвращает название пути (например, 'E-40') или None, если не найдено.
+    """
+    for way in ways:
+        if (way['p1'] == p1 and way['p2'] == p2) or (way['p1'] == p2 and way['p2'] == p1):
+            return way['way']
+    return None
 
-        # Отрисовка карты
-        screen.blit(map_img, (0, 0))
 
-        # Обновление состояния самолёта
-        plane.update()
+def process_command(command):
+    """
+    Обрабатывает команду вида /way point1 point2 и выводит найденный маршрут.
+    """
+    parts = command.strip().split()
+    if len(parts) != 3 or parts[0] != '/way':
+        print("Неверный формат команды. Используйте: /way point1 point2")
+        return
 
-        # Если самолёт в режиме FLYING и улетел за пределы экрана, можно завершить его отрисовку
-        # Здесь состояние plane.finished устанавливается в True
-        if plane.finished:
-            # В данном примере просто заливаем экран черным и выводим сообщение
-            screen.fill((0, 0, 0))
-            font = pygame.font.SysFont(None, 48)
-            text = font.render("Plane has flown away", True, (255, 255, 255))
-            screen.blit(text, (400, 360))
-        else:
-            # Отрисовка самолёта
-            plane.draw(screen)
+    start = parts[1]
+    end = parts[2]
 
-        pygame.display.flip()
+    if start not in graph:
+        print(f"Точка {start} не найдена в графе.")
+        return
+    if end not in graph:
+        print(f"Точка {end} не найдена в графе.")
+        return
 
-if __name__ == "__main__":
-    main()
+    path = bfs_path(start, end, graph)
+    if path is None:
+        print("Путь не найден.")
+        return
+
+    print("Найденный маршрут:")
+    print(" -> ".join(path))
+
+    # Выводим названия путей между последовательными точками маршрута
+    print("\nСоединяющие пути:")
+    for i in range(len(path) - 1):
+        edge_way = find_way_edge(path[i], path[i + 1], ways)
+        print(f"{path[i]} -> {path[i + 1]} : {edge_way}")
+
+
+if __name__ == '__main__':
+    # Пример: пользователь вводит команду
+    command = input("Введите команду (например, /way PCR-4 PCR-3): ")
+    process_command(command)
