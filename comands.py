@@ -2,9 +2,11 @@ import pygame
 from collections import deque
 from ways import ways
 from points import points
-import math
+from PIL import Image  # для работы с GIF
 
-# ------------------ ПОСТРОЕНИЕ ГРАФА ------------------ #
+# -------------------- ГЛОБАЛЬНЫЕ ДАННЫЕ --------------------
+
+# Построение неориентированного графа на основе списка путей.
 graph = {}
 for way in ways:
     a = way.get('p1') or way.get('point1')
@@ -13,19 +15,19 @@ for way in ways:
         graph.setdefault(a, []).append(b)
         graph.setdefault(b, []).append(a)
 
+# Словарь координат точек.
 point_coords = {pt['point']: (pt['x'], pt['y']) for pt in points}
 
-# ------------------ САМОЛЁТЫ ( /plane ) ------------------ #
-planes = {}                   # {номер_самолёта: данные}
-plane_image_original = None
-plane_image_scaled = None
+# -------------------- ДАННЫЕ ДЛЯ /plane --------------------
+planes = {}  # {номер: данные самолёта}
+plane_image_original = None  # Исходное изображение самолёта (plane.png)
+plane_image_scaled = None  # Масштабированное изображение самолёта
 
-# ------------------ МАШИНЫ ( /car ) ------------------ #
-cars = {}  # {car_id: {...}}
-next_car_id = 1  # Будем увеличивать при создании новой машины
-
-car_images_original = {}  # {model: Surface}
-car_images_scaled = {}    # {model: Surface}
+# -------------------- ДАННЫЕ ДЛЯ /car --------------------
+# Используем модель как ключ – только одна машина на модель.
+cars = {}  # { model: { ... данные машины ... } }
+car_images_original = {}  # { model: оригинальное изображение машины }
+car_images_scaled = {}  # { model: масштабированное изображение машины }
 
 ALLOWED_CAR_MODELS = {
     "baggage_tractor",
@@ -36,8 +38,58 @@ ALLOWED_CAR_MODELS = {
     "passenger_gangway"
 }
 
-# ------------------ BFS ------------------ #
+# -------------------- ДАННЫЕ ДЛЯ /action --------------------
+# Словарь активных анимаций. Структура:
+# actions[action_id] = {
+#    "name": <имя GIF>,
+#    "x": <логическая координата>,
+#    "y": <логическая координата>,
+#    "start_time": <pygame.time.get_ticks() в момент появления>,
+#    "duration": 4000   # длительность в мс
+# }
+actions = {}
+
+# Словарь, в котором для каждого допустимого имени хранится список кадров (Surface)
+action_frames = {}
+# Словарь для масштабированных кадров (аналог action_frames, но уже с учетом масштаба)
+action_frames_scaled = {}
+
+ALLOWED_ACTION_NAMES = {
+    "baggage_man",
+    "bus_passengers",
+    "catering_man",
+    "fuel_man"
+}
+
+
+# -------------------- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ --------------------
+
+def load_gif_frames(filename):
+    """
+    Загружает анимированный GIF из файла и разбивает его на кадры.
+    Возвращает список pygame.Surface.
+    """
+    frames = []
+    try:
+        with Image.open(filename) as im:
+            while True:
+                frame = im.convert("RGBA")
+                mode = frame.mode
+                size = frame.size
+                data = frame.tobytes()
+                surface = pygame.image.fromstring(data, size, mode).convert_alpha()
+                frames.append(surface)
+                im.seek(im.tell() + 1)
+    except EOFError:
+        pass
+    return frames
+
+
 def bfs_path(start, end, graph):
+    """
+    Поиск кратчайшего пути от start до end с помощью поиска в ширину (BFS).
+    Возвращает список вершин или пустой список, если путь не найден.
+    """
     queue = deque([start])
     visited = {start}
     prev = {start: None}
@@ -62,34 +114,39 @@ def bfs_path(start, end, graph):
     path.reverse()
     return path
 
+
+# -------------------- КОМАНДЫ --------------------
+
 def command_way(parts):
     """
     /way <start> <end>
-    Возвращает маршрут (список вершин) или пустой список.
+    Находит маршрут между точками start и end с помощью BFS.
+    Возвращает список вершин или пустой список.
     """
     if len(parts) != 2:
-        print("Неверный формат команды. /way <начало> <конец>")
+        print("Неверный формат команды. Используйте: /way <начало> <конец>")
         return []
     start, goal = parts[0], parts[1]
     if start not in graph:
-        print(f"Точка {start} не найдена.")
+        print(f"Точка {start} не найдена в графе.")
         return []
     if goal not in graph:
-        print(f"Точка {goal} не найдена.")
+        print(f"Точка {goal} не найдена в графе.")
         return []
     route = bfs_path(start, goal, graph)
     if not route:
         print("Путь не найден.")
     return route
 
-# ------------------ ЛОГИКА САМОЛЁТОВ ------------------ #
+
 def command_plane(parts):
     """
     /plane <номер>
-    (ЛОГИКА НЕ МЕНЯЕМ)
+    Если самолёт с указанным номером уже существует – строит маршрут до RW-0.
+    Если самолёта нет, создаёт нового (до 5 одновременно) с маршрутом от RW-0 до свободного гейта.
     """
     if len(parts) != 1:
-        print("Неверный формат команды. /plane <номер>")
+        print("Неверный формат команды. Используйте: /plane <номер>")
         return None
 
     try:
@@ -99,7 +156,6 @@ def command_plane(parts):
         return None
 
     if plane_id in planes:
-        # Уже существует => отправляем на RW-0
         plane = planes[plane_id]
         current_node = plane.get('current_node', "RW-0")
         route_to_rw = command_way([current_node, "RW-0"])
@@ -141,7 +197,8 @@ def command_plane(parts):
 
     planes[plane_id] = {
         "id": plane_id,
-        "x": x0, "y": y0,
+        "x": x0,
+        "y": y0,
         "route": route_to_gate,
         "route_index": 1,
         "gate": chosen_gate,
@@ -151,87 +208,143 @@ def command_plane(parts):
     }
     return planes[plane_id]['route']
 
-# ------------------ ЛОГИКА МАШИН ------------------ #
 
-def is_car_at_node(car_data, node, threshold=2.0):
-    """Проверяем, находится ли машина car_data физически в точке node (по координатам)."""
-    if node not in point_coords:
-        return False
-    nx, ny = point_coords[node]
-    dx = nx - car_data["x"]
-    dy = ny - car_data["y"]
-    dist = math.hypot(dx, dy)
-    return dist < threshold  # если ближе threshold пикселей, считаем, что "стоит" в узле
+def get_car_current_node(car):
+    """
+    Определяет текущую вершину, на которой находится машина.
+    Если машина движется между точками, возвращает последнюю достигнутую вершину.
+    """
+    route = car.get("route", [])
+    idx = car.get("route_index", 1)
+    if not route or idx < 1:
+        return None
+    if idx >= len(route):
+        return route[-1]
+    else:
+        return route[idx - 1]
+
 
 def command_car(parts):
     """
     /car <model> <origin> <destination>
-    - Если уже есть машина с таким model, которая физически находится в <origin>,
-      то перестраиваем маршрут от <origin> до <destination>.
-    - Иначе создаём новую машину.
-    - Машина удаляется, когда вернётся в свою точку car["origin"].
-    """
-    global next_car_id
 
+    Если машины с данной моделью не существует, создаёт новую:
+      - Начальные координаты берутся из вершины <origin>.
+      - Вычисляется маршрут от <origin> до <destination> (BFS).
+      - Запоминается начальная точка (start_origin) для удаления при возвращении.
+
+    Если машина с данной моделью уже существует, обновляет её маршрут:
+      - Берётся текущая позиция (через get_car_current_node).
+      - Строится новый маршрут до <destination>.
+
+    Машина удаляется, если маршрут завершается в точке start_origin.
+    """
     if len(parts) != 3:
-        print("Неверный формат команды. /car <model> <origin> <destination>")
+        print("Неверный формат команды. Используйте: /car <model> <origin> <destination>")
         return None
 
     model, origin, destination = parts
     if model not in ALLOWED_CAR_MODELS:
-        print(f"Ошибка: модель {model} не поддерживается.")
+        print(f"Ошибка: модель {model} не поддерживается. Допустимые модели: {', '.join(ALLOWED_CAR_MODELS)}.")
         return None
+
     if origin not in point_coords:
         print(f"Ошибка: точка {origin} не найдена.")
         return None
+
     if destination not in point_coords:
         print(f"Ошибка: точка {destination} не найдена.")
         return None
 
-    # Ищем существующую машину с таким model, которая стоит в origin
-    for cid, car_data in cars.items():
-        if car_data["model"] == model:
-            # Проверяем, действительно ли она в узле origin
-            if is_car_at_node(car_data, origin):
-                # Перестраиваем маршрут
-                new_route = command_way([origin, destination])
-                if not new_route:
-                    print("Путь не найден.")
-                    return None
-                car_data["route"] = new_route
-                car_data["route_index"] = 1
-                print(f"Машина {model} (ID={cid}) теперь едет из {origin} в {destination}: {new_route}")
-                return new_route
+    if model in cars:
+        car = cars[model]
+        current_node = get_car_current_node(car)
+        if not current_node:
+            current_node = origin
+        new_route = bfs_path(current_node, destination, graph)
+        if not new_route or new_route[-1] != destination:
+            print("Путь не найден.")
+            return None
+        car["route"] = new_route
+        car["route_index"] = 1
+        print(f"Обновлён маршрут для {model}: {new_route}")
+        return new_route
 
-    # Если не нашли подходящую машину – создаём новую
-    route = command_way([origin, destination])
+    route = bfs_path(origin, destination, graph)
     if not route or route[-1] != destination:
         print("Путь не найден.")
         return None
 
     start_x, start_y = point_coords[origin]
-    car_data = {
-        "id": next_car_id,
+    cars[model] = {
         "model": model,
         "x": start_x,
         "y": start_y,
         "route": route,
         "route_index": 1,
-        "origin": origin,  # Запоминаем исходную точку
         "speed": 5.0,
+        "start_origin": origin,
     }
-    cars[next_car_id] = car_data
-    next_car_id += 1
 
-    # Загружаем картинку, если не загружена
     if model not in car_images_original:
         try:
             car_images_original[model] = pygame.image.load(f"assets/{model}.png").convert_alpha()
             car_images_scaled[model] = None
         except Exception as e:
             print(f"Ошибка загрузки {model}.png:", e)
-            del cars[car_data["id"]]
+            del cars[model]
             return None
 
-    print(f"Создана машина {model} (ID={car_data['id']}) из {origin} в {destination}: {route}")
+    print(f"Создана машина {model} из {origin} в {destination}: {route}")
     return route
+
+
+def command_action(parts):
+    """
+    /action <Name> <Point>
+
+    - Name: имя анимации (одно из ALLOWED_ACTION_NAMES)
+    - Point: вершина карты (должна присутствовать в point_coords)
+
+    После вызова анимация появляется на заданной точке, анимация проигрывается в течение 4 секунд и затем исчезает.
+    При первом вызове для данного имени GIF разбивается на кадры с помощью Pillow.
+    """
+    if len(parts) != 2:
+        print("Неверный формат команды. Используйте: /action <Name> <Point>")
+        return
+
+    name, point = parts
+    if name not in ALLOWED_ACTION_NAMES:
+        print(f"Ошибка: '{name}' не является допустимым именем. Допустимые: {ALLOWED_ACTION_NAMES}")
+        return
+
+    if point not in point_coords:
+        print(f"Ошибка: точка {point} не найдена.")
+        return
+
+    x, y = point_coords[point]
+
+    # Загружаем и разбиваем GIF на кадры, если ещё не загружено.
+    if name not in action_frames:
+        try:
+            frames = load_gif_frames(f"animations/{name}.gif")
+            if not frames:
+                print(f"Не удалось загрузить кадры из GIF '{name}.gif'")
+                return
+            action_frames[name] = frames
+            action_frames_scaled[name] = None  # Масштабирование выполнится в main.py
+        except Exception as e:
+            print(f"Ошибка загрузки GIF '{name}.gif': {e}")
+            return
+
+    # Создаём запись в actions с автоинкрементным ключом.
+    action_id = len(actions) + 1
+    actions[action_id] = {
+        "name": name,
+        "x": x,
+        "y": y,
+        "start_time": pygame.time.get_ticks(),
+        "duration": 4000  # 4 секунды
+    }
+
+    print(f"Появляется анимация '{name}' на точке {point} (action_id={action_id})")
