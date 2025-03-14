@@ -5,9 +5,11 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="4ec3bb7d-8db3-4545-a3cd-c63d997ba69b" name="Changes" comment="1">
+      <change afterPath="$PROJECT_DIR$/animations/baggage_man.gif" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/animations/bus_passengers.gif" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/animations/catering_man.gif" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/animations/fuel_man.gif" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/comands.py" beforeDir="false" afterPath="$PROJECT_DIR$/comands.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -66,6 +68,7 @@
 }</component>
   <component name="RecentsManager">
     <key name="MoveFile.RECENT_KEYS">
+      <recent name="C:\Users\ChernyshevAY\PycharmProjects\airport_visualizer\animations" />
       <recent name="C:\Users\ChernyshevAY\PycharmProjects\airport_visualizer" />
       <recent name="C:\Users\ChernyshevAY\PycharmProjects\airport_visualizer\data" />
       <recent name="C:\Users\ChernyshevAY\PycharmProjects\airport_visualizer\assets" />
@@ -151,7 +154,15 @@
       <option name="project" value="LOCAL" />
       <updated>1741979076820</updated>
     </task>
-    <option name="localTasksCounter" value="9" />
+    <task id="LOCAL-00009" summary="1">
+      <option name="closed" value="true" />
+      <created>1741980668380</created>
+      <option name="number" value="00009" />
+      <option name="presentableId" value="LOCAL-00009" />
+      <option name="project" value="LOCAL" />
+      <updated>1741980668380</updated>
+    </task>
+    <option name="localTasksCounter" value="10" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
