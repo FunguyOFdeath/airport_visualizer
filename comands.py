@@ -2,40 +2,42 @@ import pygame
 from collections import deque
 from ways import ways
 from points import points
+import math
 
-# Построение неориентированного графа на основе списка путей.
+# ------------------ ПОСТРОЕНИЕ ГРАФА ------------------ #
 graph = {}
 for way in ways:
-    # Обрабатываем как формат из ways.py, так и из WAY.txt (ключи 'p1' и 'p2')
     a = way.get('p1') or way.get('point1')
     b = way.get('p2') or way.get('point2')
     if a and b:
         graph.setdefault(a, []).append(b)
         graph.setdefault(b, []).append(a)
 
-# Словарь координат точек.
 point_coords = {pt['point']: (pt['x'], pt['y']) for pt in points}
 
-# Глобальные переменные для самолётов (команда /plane)
-planes = {}                   # {номер: данные самолёта}
-plane_image_original = None   # Оригинальное изображение самолёта (plane.png)
-plane_image_scaled = None     # Масштабированное изображение самолёта (задаётся в main.py)
+# ------------------ САМОЛЁТЫ ( /plane ) ------------------ #
+planes = {}                   # {номер_самолёта: данные}
+plane_image_original = None
+plane_image_scaled = None
 
-# Глобальные переменные для машин (команда /car)
-cars = {}  # Ключ – точка создания (начало), считается уникальным идентификатором машины.
-# Словари для хранения изображений машин по моделям.
-car_images_original = {}  # {model: оригинальное изображение}
-car_images_scaled = {}    # {model: масштабированное изображение}
+# ------------------ МАШИНЫ ( /car ) ------------------ #
+cars = {}  # {car_id: {...}}
+next_car_id = 1  # Будем увеличивать при создании новой машины
 
-# Допустимые модели машин.
-ALLOWED_CAR_MODELS = {"baggage_tractor", "bus", "catering_truck", "followme", "fuel_truck", "passenger_gangway"}
+car_images_original = {}  # {model: Surface}
+car_images_scaled = {}    # {model: Surface}
 
+ALLOWED_CAR_MODELS = {
+    "baggage_tractor",
+    "bus",
+    "catering_truck",
+    "followme",
+    "fuel_truck",
+    "passenger_gangway"
+}
 
+# ------------------ BFS ------------------ #
 def bfs_path(start, end, graph):
-    """
-    Поиск пути от start до end с использованием поиска в ширину (BFS).
-    Возвращает список вершин или пустой список, если путь не найден.
-    """
     queue = deque([start])
     visited = {start}
     prev = {start: None}
@@ -60,37 +62,34 @@ def bfs_path(start, end, graph):
     path.reverse()
     return path
 
-
 def command_way(parts):
     """
-    /way <начало> <конец>
-    Возвращает маршрут (список вершин) или пустой список, если маршрут не найден.
+    /way <start> <end>
+    Возвращает маршрут (список вершин) или пустой список.
     """
     if len(parts) != 2:
-        print("Неверный формат команды. Используйте: /way <начало> <конец>")
+        print("Неверный формат команды. /way <начало> <конец>")
         return []
     start, goal = parts[0], parts[1]
     if start not in graph:
-        print(f"Точка {start} не найдена в графе.")
+        print(f"Точка {start} не найдена.")
         return []
     if goal not in graph:
-        print(f"Точка {goal} не найдена в графе.")
+        print(f"Точка {goal} не найдена.")
         return []
     route = bfs_path(start, goal, graph)
     if not route:
         print("Путь не найден.")
     return route
 
-
+# ------------------ ЛОГИКА САМОЛЁТОВ ------------------ #
 def command_plane(parts):
     """
     /plane <номер>
-    Если самолёт с указанным номером уже существует, строит для него маршрут из текущей точки до RW-0.
-    Если самолёта нет – создаёт новый с маршрутом от RW-0 до свободного гейта.
-    (Логика не изменяется – не трогаем /plane)
+    (ЛОГИКА НЕ МЕНЯЕМ)
     """
     if len(parts) != 1:
-        print("Неверный формат команды. Используйте: /plane <номер>")
+        print("Неверный формат команды. /plane <номер>")
         return None
 
     try:
@@ -100,13 +99,14 @@ def command_plane(parts):
         return None
 
     if plane_id in planes:
+        # Уже существует => отправляем на RW-0
         plane = planes[plane_id]
         current_node = plane.get('current_node', "RW-0")
         route_to_rw = command_way([current_node, "RW-0"])
         if route_to_rw and route_to_rw[-1] == "RW-0":
             plane['route'] = route_to_rw
             plane['route_index'] = 1
-            plane['removing'] = True  # пометка для удаления
+            plane['removing'] = True
         return plane.get('route', [])
 
     if len(planes) >= 5:
@@ -148,72 +148,90 @@ def command_plane(parts):
         "removing": False,
         "speed": 10.0,
         "current_node": "RW-0",
-        "canvas_item": None
     }
     return planes[plane_id]['route']
 
+# ------------------ ЛОГИКА МАШИН ------------------ #
+
+def is_car_at_node(car_data, node, threshold=2.0):
+    """Проверяем, находится ли машина car_data физически в точке node (по координатам)."""
+    if node not in point_coords:
+        return False
+    nx, ny = point_coords[node]
+    dx = nx - car_data["x"]
+    dy = ny - car_data["y"]
+    dist = math.hypot(dx, dy)
+    return dist < threshold  # если ближе threshold пикселей, считаем, что "стоит" в узле
 
 def command_car(parts):
     """
-    /car <model> <начало> <конец>
-    Если машины с данным идентификатором (точкой создания <начало>) нет, создаёт новую машину
-    с указанной моделью, устанавливает её координаты в точке <начало> и вычисляет маршрут до <конец>.
-    Если машина с данным идентификатором уже существует, обновляет для неё маршрут от текущей позиции до <конец>.
-    Когда машина достигает точки, равной точке создания, она удаляется.
+    /car <model> <origin> <destination>
+    - Если уже есть машина с таким model, которая физически находится в <origin>,
+      то перестраиваем маршрут от <origin> до <destination>.
+    - Иначе создаём новую машину.
+    - Машина удаляется, когда вернётся в свою точку car["origin"].
     """
+    global next_car_id
+
     if len(parts) != 3:
-        print("Неверный формат команды. Используйте: /car <model> <начало> <конец>")
+        print("Неверный формат команды. /car <model> <origin> <destination>")
         return None
 
-    model, origin, destination = parts[0], parts[1], parts[2]
-
+    model, origin, destination = parts
     if model not in ALLOWED_CAR_MODELS:
-        print(f"Ошибка: модель {model} не поддерживается. Допустимые модели: {', '.join(ALLOWED_CAR_MODELS)}.")
+        print(f"Ошибка: модель {model} не поддерживается.")
         return None
-
     if origin not in point_coords:
         print(f"Ошибка: точка {origin} не найдена.")
         return None
-
     if destination not in point_coords:
         print(f"Ошибка: точка {destination} не найдена.")
         return None
 
+    # Ищем существующую машину с таким model, которая стоит в origin
+    for cid, car_data in cars.items():
+        if car_data["model"] == model:
+            # Проверяем, действительно ли она в узле origin
+            if is_car_at_node(car_data, origin):
+                # Перестраиваем маршрут
+                new_route = command_way([origin, destination])
+                if not new_route:
+                    print("Путь не найден.")
+                    return None
+                car_data["route"] = new_route
+                car_data["route_index"] = 1
+                print(f"Машина {model} (ID={cid}) теперь едет из {origin} в {destination}: {new_route}")
+                return new_route
+
+    # Если не нашли подходящую машину – создаём новую
     route = command_way([origin, destination])
     if not route or route[-1] != destination:
         print("Путь не найден.")
         return None
 
-    # Если машина с данным идентификатором (точкой создания) уже существует, обновляем её маршрут.
-    if origin in cars:
-        car = cars[origin]
-        car['route'] = route
-        car['route_index'] = 1
-        print(f"Обновлён маршрут для машины, созданной в {origin}: {route}")
-        return route
-
-    # Если машины нет, создаём новую.
-    start_coords = point_coords[origin]
-    car = {
+    start_x, start_y = point_coords[origin]
+    car_data = {
+        "id": next_car_id,
         "model": model,
-        "x": start_coords[0],
-        "y": start_coords[1],
+        "x": start_x,
+        "y": start_y,
         "route": route,
         "route_index": 1,
-        "origin": origin,  # Запоминаем точку создания
-        "speed": 10.0,      # Скорость машины
+        "origin": origin,  # Запоминаем исходную точку
+        "speed": 5.0,
     }
-    cars[origin] = car
+    cars[next_car_id] = car_data
+    next_car_id += 1
 
-    # Загружаем изображение для данной модели, если оно ещё не загружено.
+    # Загружаем картинку, если не загружена
     if model not in car_images_original:
         try:
             car_images_original[model] = pygame.image.load(f"assets/{model}.png").convert_alpha()
-            car_images_scaled[model] = None  # Будет масштабировано в main.py
+            car_images_scaled[model] = None
         except Exception as e:
             print(f"Ошибка загрузки {model}.png:", e)
-            del cars[origin]
+            del cars[car_data["id"]]
             return None
 
-    print(f"Создана машина {model} с маршрутом: {route}")
+    print(f"Создана машина {model} (ID={car_data['id']}) из {origin} в {destination}: {route}")
     return route
