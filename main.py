@@ -1,3 +1,18 @@
+# Краткое описание команд и форматов
+#
+# /way <start> <end>
+# Находит маршрут между точками start и end с помощью BFS.
+#
+# /plane <номер>
+# Если самолёт с данным номером уже существует, перенаправляет его на RW-0 (для вылета); если нет – создаёт новый самолёт с маршрутом от RW-0 до свободного гейта.
+#
+# /car <model> <origin> <destination>
+# baggage_tractor, bus, catering_truck, followme, fuel_truck, passenger_gangway
+# Если машины с данной моделью не существует, создаёт её в точке origin и задаёт маршрут до destination; если существует – обновляет маршрут машины с текущей позиции до destination. Машина удаляется, если возвращается в точку origin.
+#
+# /action <Name> <Point>
+# Показывает GIF-анимацию с именем Name (например, baggage_man, bus_passengers, catering_man, fuel_man) в заданной точке Point на 4 секунды, после чего анимация исчезает
+
 import pygame
 import threading
 import queue
@@ -142,7 +157,7 @@ def main():
                 target_pos = comands.point_coords.get(target_vertex, current_pos)
                 dx = target_pos[0] - plane_data["x"]
                 dy = target_pos[1] - plane_data["y"]
-                dist = (dx**2 + dy**2) ** 0.5
+                dist = (dx ** 2 + dy ** 2) ** 0.5
 
                 if dist < plane_data["speed"]:
                     plane_data["x"], plane_data["y"] = target_pos
@@ -151,17 +166,26 @@ def main():
                 else:
                     plane_data["x"] += plane_data["speed"] * dx / dist
                     plane_data["y"] += plane_data["speed"] * dy / dist
+                # Вычисляем угол движения на основе dx и dy:
+                import math
+                computed_angle = math.degrees(math.atan2(-dy, dx)) + 180
             else:
                 if plane_data.get("removing", False):
                     del comands.planes[plane_id]
                     continue
+                # Если самолёт не движется, используем базовый угол:
+                computed_angle = 0
+
             if plane_id in comands.planes:
                 draw_x = plane_data["x"] * scale
                 draw_y = plane_data["y"] * scale
                 if comands.plane_image_scaled:
-                    plane_rect = comands.plane_image_scaled.get_rect()
+                    # Итоговый угол – это вычисленный угол плюс базовое смещение "ange" (например, 270)
+                    final_angle = computed_angle + plane_data.get("ange", 0)
+                    rotated_image = pygame.transform.rotate(comands.plane_image_scaled, final_angle)
+                    plane_rect = rotated_image.get_rect()
                     plane_rect.center = (draw_x, draw_y)
-                    screen.blit(comands.plane_image_scaled, plane_rect)
+                    screen.blit(rotated_image, plane_rect)
 
         # Отрисовка машин (/car)
         for model, car_data in list(comands.cars.items()):
@@ -174,7 +198,7 @@ def main():
                 target_pos = comands.point_coords.get(target_vertex, current_pos)
                 dx = target_pos[0] - car_data["x"]
                 dy = target_pos[1] - car_data["y"]
-                dist = (dx**2 + dy**2) ** 0.5
+                dist = (dx ** 2 + dy ** 2) ** 0.5
 
                 if dist < car_data["speed"]:
                     car_data["x"], car_data["y"] = target_pos
@@ -182,18 +206,27 @@ def main():
                 else:
                     car_data["x"] += car_data["speed"] * dx / dist
                     car_data["y"] += car_data["speed"] * dy / dist
+
+                # Вычисляем угол движения
+                import math
+                computed_angle = math.degrees(math.atan2(-dy, dx)) + 180
             else:
                 if route and route[-1] == car_data.get("start_origin"):
                     del comands.cars[model]
                     continue
+                # Если машина не движется, используем угол 0
+                computed_angle = 0
+
             if model in comands.cars:
                 draw_x = car_data["x"] * scale
                 draw_y = car_data["y"] * scale
                 if model in comands.car_images_scaled and comands.car_images_scaled[model]:
                     car_image = comands.car_images_scaled[model]
-                    car_rect = car_image.get_rect()
+                    # Поворачиваем изображение машины на вычисленный угол
+                    rotated_image = pygame.transform.rotate(car_image, computed_angle)
+                    car_rect = rotated_image.get_rect()
                     car_rect.center = (draw_x, draw_y)
-                    screen.blit(car_image, car_rect)
+                    screen.blit(rotated_image, car_rect)
 
         # Отрисовка анимаций /action
         # Здесь используем кадры, которые были загружены с помощью Pillow

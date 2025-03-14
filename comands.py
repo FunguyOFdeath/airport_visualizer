@@ -205,6 +205,7 @@ def command_plane(parts):
         "removing": False,
         "speed": 10.0,
         "current_node": "RW-0",
+        "ange": 0
     }
     return planes[plane_id]['route']
 
@@ -284,6 +285,7 @@ def command_car(parts):
         "route_index": 1,
         "speed": 5.0,
         "start_origin": origin,
+        "ange": 0
     }
 
     if model not in car_images_original:
