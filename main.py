@@ -101,7 +101,11 @@ def main():
         # Обработка событий
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                running = False
+                return False
+            elif event.type == pygame.KEYDOWN:
+                # print(event.key)
+                if event.key == pygame.K_ESCAPE:
+                    return False
 
         # Обработка команд из консоли
         while not input_queue.empty():
