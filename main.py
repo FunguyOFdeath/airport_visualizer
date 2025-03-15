@@ -1,28 +1,50 @@
-# Краткое описание команд и форматов
-#
-# /way <start> <end>
-# Находит маршрут между точками start и end с помощью BFS.
-#
-# /plane <номер>
-# Если самолёт с данным номером уже существует, перенаправляет его на RW-0 (для вылета); если нет – создаёт новый самолёт с маршрутом от RW-0 до свободного гейта.
-#
-# /car <model> <origin> <destination>
-# baggage_tractor, bus, catering_truck, followme, fuel_truck, passenger_gangway
-# Если машины с данной моделью не существует, создаёт её в точке origin и задаёт маршрут до destination; если существует – обновляет маршрут машины с текущей позиции до destination. Машина удаляется, если возвращается в точку origin.
-#
-# /action <Name> <Point>
-# Показывает GIF-анимацию с именем Name (например, baggage_man, bus_passengers, catering_man, fuel_man) в заданной точке Point на 4 секунды, после чего анимация исчезает
-
 import pygame
 import threading
 import queue
-import comands  # импортируем все функции и глобальные переменные из comands.py
+import pika
+import logging
+import comands  # импортируем функции и глобальные переменные из comands.py
 
-def input_thread(input_queue):
-    """Поток, который постоянно ждёт ввода из консоли."""
+# Настройка логирования
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# URL для подключения к RabbitMQ
+RABBITMQ_URL = "amqp://xnyyznus:OSOOLzaQHT5Ys6NPEMAU5DxTChNu2MUe@hawk.rmq.cloudamqp.com:5672/xnyyznus"
+
+
+def console_input_thread(input_queue):
+    """Поток, который ждёт ввода из консоли."""
     while True:
         user_input = input()
         input_queue.put(user_input)
+
+
+def rabbitmq_listener(input_queue):
+    """Поток для прослушивания RabbitMQ-очередей render.car и render.plane.
+    Полученные сообщения помещаются в input_queue.
+    """
+    try:
+        parameters = pika.URLParameters(RABBITMQ_URL)
+        connection = pika.BlockingConnection(parameters)
+        channel = connection.channel()
+        # Объявляем очереди (durable=True для устойчивости)
+        channel.queue_declare(queue="render.car", durable=False)
+        channel.queue_declare(queue="render.plane", durable=False)
+
+        def callback(ch, method, properties, body):
+            message = body.decode("utf-8")
+            logger.info(f"Получено сообщение из RabbitMQ: {message}")
+            input_queue.put(message)
+            ch.basic_ack(delivery_tag=method.delivery_tag)
+
+        channel.basic_consume(queue="render.car", on_message_callback=callback)
+        channel.basic_consume(queue="render.plane", on_message_callback=callback)
+        logger.info("RabbitMQ listener запущен, ожидаем сообщений...")
+        channel.start_consuming()
+    except Exception as e:
+        logger.error(f"Ошибка RabbitMQ listener: {e}")
+
 
 def main():
     pygame.init()
@@ -62,12 +84,18 @@ def main():
 
     clock = pygame.time.Clock()
 
-    # --- 5) Запуск потока ввода команд ---
+    # --- 5) Создаём общую очередь команд ---
     input_queue = queue.Queue()
-    thread = threading.Thread(target=input_thread, args=(input_queue,), daemon=True)
-    thread.start()
 
-    # --- 6) Масштабируем изображение самолёта (команда /plane) ---
+    # --- 6) Запускаем поток консольного ввода ---
+    console_thread = threading.Thread(target=console_input_thread, args=(input_queue,), daemon=True)
+    console_thread.start()
+
+    # --- 7) Запускаем RabbitMQ listener в отдельном потоке ---
+    rabbit_thread = threading.Thread(target=rabbitmq_listener, args=(input_queue,), daemon=True)
+    rabbit_thread.start()
+
+    # --- 8) Масштабирование изображений для /plane и /car ---
     plane_factor = 0.2
     if comands.plane_image_original:
         w_orig, h_orig = comands.plane_image_original.get_size()
@@ -80,9 +108,7 @@ def main():
     else:
         print("Предупреждение: plane_image_original ещё не загружен в comands.py")
 
-    # --- 7) Масштабируем изображения машин (команда /car) ---
-    # Машина должна быть в 2 раза меньше самолёта (при plane_factor=0.2 => car_factor=0.1)
-    car_factor = 0.1
+    car_factor = 0.1  # Машина должна быть в 2 раза меньше самолёта
     for model, orig_image in comands.car_images_original.items():
         if comands.car_images_scaled.get(model) is None:
             w_orig, h_orig = orig_image.get_size()
@@ -93,21 +119,19 @@ def main():
             comands.car_images_scaled[model] = pygame.transform.smoothscale(orig_image, (new_w, new_h))
             print(f"Машина {model} после масштабирования: {new_w}x{new_h}")
 
-    # --- 8) Коэффициент для GIF-анимаций /action ---
-    action_factor = 0.25
+    action_factor = 0.25  # Коэффициент для GIF-анимаций /action
 
     running = True
     while running:
-        # Обработка событий
+        # --- Обработка событий Pygame ---
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                return False
+                running = False
             elif event.type == pygame.KEYDOWN:
-                # print(event.key)
                 if event.key == pygame.K_ESCAPE:
-                    return False
+                    running = False
 
-        # Обработка команд из консоли
+        # --- Обработка команд из общей очереди ---
         while not input_queue.empty():
             cmd_line = input_queue.get()
             if cmd_line.startswith("/"):
@@ -125,7 +149,8 @@ def main():
                             new_h = int(h_orig * scale * plane_factor)
                             new_w = max(new_w, 1)
                             new_h = max(new_h, 1)
-                            comands.plane_image_scaled = pygame.transform.smoothscale(comands.plane_image_original, (new_w, new_h))
+                            comands.plane_image_scaled = pygame.transform.smoothscale(comands.plane_image_original,
+                                                                                      (new_w, new_h))
                 elif parts[0] == "/car":
                     route = comands.command_car(parts[1:])
                     if route:
@@ -147,10 +172,10 @@ def main():
             else:
                 print("не команда")
 
-        # Отрисовка карты
+        # --- Отрисовка карты ---
         screen.blit(map_image, (0, 0))
 
-        # Отрисовка самолётов (/plane)
+        # --- Отрисовка самолётов (/plane) ---
         for plane_id, plane_data in list(comands.planes.items()):
             route = plane_data.get("route", [])
             idx = plane_data.get("route_index", 1)
@@ -170,28 +195,25 @@ def main():
                 else:
                     plane_data["x"] += plane_data["speed"] * dx / dist
                     plane_data["y"] += plane_data["speed"] * dy / dist
-                # Вычисляем угол движения на основе dx и dy:
                 import math
                 computed_angle = math.degrees(math.atan2(-dy, dx)) + 180
             else:
                 if plane_data.get("removing", False):
                     del comands.planes[plane_id]
                     continue
-                # Если самолёт не движется, используем базовый угол:
                 computed_angle = 0
 
             if plane_id in comands.planes:
                 draw_x = plane_data["x"] * scale
                 draw_y = plane_data["y"] * scale
                 if comands.plane_image_scaled:
-                    # Итоговый угол – это вычисленный угол плюс базовое смещение "ange" (например, 270)
                     final_angle = computed_angle + plane_data.get("ange", 0)
                     rotated_image = pygame.transform.rotate(comands.plane_image_scaled, final_angle)
                     plane_rect = rotated_image.get_rect()
                     plane_rect.center = (draw_x, draw_y)
                     screen.blit(rotated_image, plane_rect)
 
-        # Отрисовка машин (/car)
+        # --- Отрисовка машин (/car) ---
         for model, car_data in list(comands.cars.items()):
             route = car_data.get("route", [])
             idx = car_data.get("route_index", 1)
@@ -210,15 +232,12 @@ def main():
                 else:
                     car_data["x"] += car_data["speed"] * dx / dist
                     car_data["y"] += car_data["speed"] * dy / dist
-
-                # Вычисляем угол движения
                 import math
                 computed_angle = math.degrees(math.atan2(-dy, dx)) + 180
             else:
                 if route and route[-1] == car_data.get("start_origin"):
                     del comands.cars[model]
                     continue
-                # Если машина не движется, используем угол 0
                 computed_angle = 0
 
             if model in comands.cars:
@@ -226,14 +245,12 @@ def main():
                 draw_y = car_data["y"] * scale
                 if model in comands.car_images_scaled and comands.car_images_scaled[model]:
                     car_image = comands.car_images_scaled[model]
-                    # Поворачиваем изображение машины на вычисленный угол
                     rotated_image = pygame.transform.rotate(car_image, computed_angle)
                     car_rect = rotated_image.get_rect()
                     car_rect.center = (draw_x, draw_y)
                     screen.blit(rotated_image, car_rect)
 
-        # Отрисовка анимаций /action
-        # Здесь используем кадры, которые были загружены с помощью Pillow
+        # --- Отрисовка анимаций /action ---
         now = pygame.time.get_ticks()
         for action_id, action_data in list(comands.actions.items()):
             start_time = action_data["start_time"]
@@ -243,7 +260,6 @@ def main():
                 continue
 
             name = action_data["name"]
-            # Если для данного имени ещё не выполнено масштабирование, масштабируем все кадры
             if name not in comands.action_frames_scaled or comands.action_frames_scaled[name] is None:
                 scaled_frames = []
                 for frame in comands.action_frames[name]:
@@ -259,7 +275,6 @@ def main():
             elapsed = now - start_time
             frames_list = comands.action_frames[name]
             n_frames = len(frames_list)
-            # Рассчитываем индекс кадра: линейное распределение по длительности анимации
             frame_index = int((elapsed / duration) * n_frames)
             if frame_index >= n_frames:
                 frame_index = n_frames - 1
@@ -274,6 +289,7 @@ def main():
         clock.tick(10)
 
     pygame.quit()
+
 
 if __name__ == '__main__':
     main()
