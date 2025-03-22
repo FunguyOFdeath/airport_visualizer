@@ -45,4 +45,4 @@
 {'way': "E-11", 'point1': "CR-2", 'point2': "CR-1"},
 {'way': "E-30", 'point1': "CR-1", 'point2': "CS-1"},
 {'way': "E-31", 'point1': "CR-1", 'point2': "BW-1"},
-{'way': "E-32", 'point1': "CR-1", 'point2': "TX-1"}
+{'way': "E-32", 'point1': "CR-1", 'point2': "XT-1"}

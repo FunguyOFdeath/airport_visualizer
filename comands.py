@@ -24,19 +24,25 @@ plane_image_original = None  # Исходное изображение само�
 plane_image_scaled = None  # Масштабированное изображение самолёта
 
 # -------------------- ДАННЫЕ ДЛЯ /car --------------------
-# Используем модель как ключ – только одна машина на модель.
-cars = {}  # { model: { ... данные машины ... } }
+# Используем id машины как ключ (например, "BUS-1")
+cars = {}  # { car_id: { ... данные машины ... } }
 car_images_original = {}  # { model: оригинальное изображение машины }
 car_images_scaled = {}  # { model: масштабированное изображение машины }
 
-ALLOWED_CAR_MODELS = {
-    "baggage_tractor",
-    "bus",
-    "catering_truck",
-    "followme",
-    "fuel_truck",
-    "passenger_gangway"
+# Словарь соответствия коротких ID типам машин
+VEHICLE_TYPE_MAPPING = {
+    "BUS": "bus",
+    "BG": "baggage_tractor",
+    "CT": "catering_truck",
+    "FM": "followme",
+    "RT": "fuel_truck"
 }
+
+# Обновляем список разрешенных моделей машин
+ALLOWED_CAR_MODELS = set(VEHICLE_TYPE_MAPPING.values())
+
+# Словарь для отслеживания количества машин каждого типа
+car_counts = {model: 0 for model in ALLOWED_CAR_MODELS}
 
 # -------------------- ДАННЫЕ ДЛЯ /action --------------------
 # Словарь активных анимаций. Структура:
@@ -210,6 +216,35 @@ def command_plane(parts):
     return planes[plane_id]['route']
 
 
+def get_vehicle_type_from_id(vehicle_id):
+    """Определяет тип техники по ID.
+    Возвращает кортеж (тип, номер):
+    - для самолётов: ("plane", номер)
+    - для машин: ("car", тип_машины)
+    """
+    if not vehicle_id or "-" not in vehicle_id:
+        return None, None
+
+    prefix, number = vehicle_id.split("-", 1)
+    prefix = prefix.upper()
+
+    if prefix == "PL":
+        return "plane", number
+    elif prefix in VEHICLE_TYPE_MAPPING:
+        return "car", VEHICLE_TYPE_MAPPING[prefix]
+    else:
+        return None, None
+
+
+def get_car_model_from_id(car_id):
+    """Получает модель машины из её ID."""
+    if not car_id or "-" not in car_id:
+        return None
+
+    prefix = car_id.split("-", 1)[0].upper()
+    return VEHICLE_TYPE_MAPPING.get(prefix)
+
+
 def get_car_current_node(car):
     """
     Определяет текущую вершину, на которой находится машина.
@@ -225,80 +260,161 @@ def get_car_current_node(car):
         return route[idx - 1]
 
 
-def command_car(parts):
+def is_edge(point):
     """
-    /car <model> <origin> <destination>
+    Проверяет, является ли точка ребром (начинается с 'E').
+    """
+    return isinstance(point, str) and point.startswith('E')
 
-    Если машины с данной моделью не существует, создаёт новую:
-      - Начальные координаты берутся из вершины <origin>.
-      - Вычисляется маршрут от <origin> до <destination> (BFS).
-      - Запоминается начальная точка (start_origin) для удаления при возвращении.
 
-    Если машина с данной моделью уже существует, обновляет её маршрут:
-      - Берётся текущая позиция (через get_car_current_node).
-      - Строится новый маршрут до <destination>.
+def find_edge_endpoints(edge_name):
+    """
+    Находит вершины, которые соединяет ребро.
+    Возвращает кортеж (vertex1, vertex2) или None, если ребро не найдено.
+    """
+    for way in ways:
+        if way.get('way') == edge_name:
+            p1 = way.get('p1') or way.get('point1')
+            p2 = way.get('p2') or way.get('point2')
+            if p1 and p2:
+                return (p1, p2)
+    return None
 
-    Машина удаляется, если маршрут завершается в точке start_origin.
+
+def get_edge_midpoint(edge_name):
+    """
+    Вычисляет координаты середины ребра.
+    Возвращает кортеж (x, y) или None, если ребро не найдено.
+    """
+    endpoints = find_edge_endpoints(edge_name)
+    if not endpoints:
+        return None
+
+    v1, v2 = endpoints
+    if v1 not in point_coords or v2 not in point_coords:
+        return None
+
+    x1, y1 = point_coords[v1]
+    x2, y2 = point_coords[v2]
+    return ((x1 + x2) / 2, (y1 + y2) / 2)
+
+
+def bfs_path_with_edges(start, end, graph):
+    """
+    Модифицированный поиск пути с поддержкой начала/конца на рёбрах.
+    """
+    # Если начало или конец - ребро, находим его конечные точки
+    start_points = []
+    end_points = []
+
+    if is_edge(start):
+        endpoints = find_edge_endpoints(start)
+        if endpoints:
+            start_points = list(endpoints)
+    else:
+        start_points = [start]
+
+    if is_edge(end):
+        endpoints = find_edge_endpoints(end)
+        if endpoints:
+            end_points = list(endpoints)
+    else:
+        end_points = [end]
+
+    # Если не удалось найти точки для ребер, возвращаем пустой путь
+    if not start_points or not end_points:
+        return []
+
+    # Находим кратчайший путь между всеми возможными комбинациями точек
+    shortest_path = []
+    min_length = float('inf')
+
+    for s in start_points:
+        for e in end_points:
+            path = bfs_path(s, e, graph)
+            if path and len(path) < min_length:
+                min_length = len(path)
+                shortest_path = path
+
+    # Добавляем ребра в начало и конец пути, если они были указаны
+    if shortest_path:
+        if is_edge(start):
+            shortest_path.insert(0, start)
+        if is_edge(end):
+            shortest_path.append(end)
+
+    return shortest_path
+
+
+def command_move(parts):
+    """
+    /move <id> <origin> <destination>
+
+    ID может быть:
+    - PL-N для самолётов (например, "PL-1")
+    - MODEL-N для машин (например, "BUS-1", "FUEL_TRUCK-2")
+
+    Origin и Destination могут быть:
+    - Вершинами графа (точками)
+    - Рёбрами (E-*) - для всех типов транспорта
     """
     if len(parts) != 3:
-        print("Неверный формат команды. Используйте: /car <model> <origin> <destination>")
+        print("Неверный формат команды. Используйте: /move <id> <origin> <destination>")
         return None
 
-    model, origin, destination = parts
-    if model not in ALLOWED_CAR_MODELS:
-        print(f"Ошибка: модель {model} не поддерживается. Допустимые модели: {', '.join(ALLOWED_CAR_MODELS)}.")
+    vehicle_id, origin, destination = parts
+    vehicle_type, vehicle_number = get_vehicle_type_from_id(vehicle_id)
+
+    if not vehicle_type:
+        print(
+            f"Ошибка: некорректный ID '{vehicle_id}'. Должен быть в формате PL-N для самолётов или MODEL-N для машин.")
         return None
 
-    if origin not in point_coords:
-        print(f"Ошибка: точка {origin} не найдена.")
+    # Проверяем существование точек/рёбер
+    if not is_edge(origin) and origin not in graph:
+        print(f"Точка {origin} не найдена в графе.")
+        return None
+    if not is_edge(destination) and destination not in graph:
+        print(f"Точка {destination} не найдена в графе.")
+        return None
+    if is_edge(origin) and not find_edge_endpoints(origin):
+        print(f"Ребро {origin} не найдено.")
+        return None
+    if is_edge(destination) and not find_edge_endpoints(destination):
+        print(f"Ребро {destination} не найдено.")
         return None
 
-    if destination not in point_coords:
-        print(f"Ошибка: точка {destination} не найдена.")
-        return None
-
-    if model in cars:
-        car = cars[model]
-        current_node = get_car_current_node(car)
-        if not current_node:
-            current_node = origin
-        new_route = bfs_path(current_node, destination, graph)
-        if not new_route or new_route[-1] != destination:
-            print("Путь не найден.")
-            return None
-        car["route"] = new_route
-        car["route_index"] = 1
-        print(f"Обновлён маршрут для {model}: {new_route}")
-        return new_route
-
-    route = bfs_path(origin, destination, graph)
-    if not route or route[-1] != destination:
-        print("Путь не найден.")
-        return None
-
-    start_x, start_y = point_coords[origin]
-    cars[model] = {
-        "model": model,
-        "x": start_x,
-        "y": start_y,
-        "route": route,
-        "route_index": 1,
-        "speed": 5.0,
-        "start_origin": origin,
-        "ange": 0
-    }
-
-    if model not in car_images_original:
-        try:
-            car_images_original[model] = pygame.image.load(f"assets/{model}.png").convert_alpha()
-            car_images_scaled[model] = None
-        except Exception as e:
-            print(f"Ошибка загрузки {model}.png:", e)
-            del cars[model]
+    # Обработка самолётов
+    if vehicle_type == "plane":
+        if vehicle_id in planes:
+            plane = planes[vehicle_id]
+            current_node = plane.get('current_node', origin)
+            route = bfs_path_with_edges(current_node, destination, graph)
+            if route:
+                plane['route'] = route
+                plane['route_index'] = 1
+                plane['removing'] = False
+                return route
+        else:
+            print(f"Ошибка: самолёт {vehicle_id} не найден. Используйте /init для создания.")
             return None
 
-    print(f"Создана машина {model} из {origin} в {destination}: {route}")
-    return route
+    # Обработка машин
+    else:  # vehicle_type == "car"
+        if vehicle_id in cars:
+            car = cars[vehicle_id]
+            current_node = car.get('current_node', origin)
+            route = bfs_path_with_edges(current_node, destination, graph)
+            if route:
+                car['route'] = route
+                car['route_index'] = 1
+                return route
+            else:
+                print("Маршрут не найден.")
+                return None
+        else:
+            print(f"Ошибка: машина {vehicle_id} не найдена. Используйте /init для создания.")
+            return None
 
 
 def command_action(parts):
@@ -350,3 +466,125 @@ def command_action(parts):
     }
 
     print(f"Появляется анимация '{name}' на точке {point} (action_id={action_id})")
+
+
+def command_init(parts):
+    """Инициализация техники на указанной точке.
+    Формат: /init <id> <point>
+    """
+    if len(parts) != 2:
+        print("Использование: /init <id> <point>")
+        return None
+
+    vehicle_id = parts[0]
+    point = parts[1]
+
+    # Проверяем, является ли точка node
+    if is_edge(point):
+        print("Ошибка: нельзя инициализировать технику на ребре")
+        return None
+
+    # Проверяем существование точки
+    if point not in point_coords:
+        print(f"Ошибка: точка {point} не найдена")
+        return None
+
+    # Определяем тип техники
+    vehicle_type, vehicle_number = get_vehicle_type_from_id(vehicle_id)
+
+    if vehicle_type == "plane":
+        # Проверяем, не существует ли уже самолёт с таким ID
+        if vehicle_id in planes:
+            print(f"Ошибка: самолёт {vehicle_id} уже существует")
+            return None
+
+        # Загружаем изображение самолёта, если ещё не загружено
+        global plane_image_original
+        if plane_image_original is None:
+            try:
+                plane_image_original = pygame.image.load("assets/plane.png").convert_alpha()
+            except Exception as e:
+                print("Ошибка загрузки plane.png:", e)
+                return None
+
+        # Создаём новый самолёт
+        planes[vehicle_id] = {
+            "x": point_coords[point][0],
+            "y": point_coords[point][1],
+            "route": [],
+            "route_index": 0,
+            "speed": 8.0,
+            "current_node": point,
+            "last_angle": 0
+        }
+        print(f"Самолёт {vehicle_id} инициализирован на точке {point}")
+
+    elif vehicle_type == "car":
+        # Проверяем, не существует ли уже машина с таким ID
+        if vehicle_id in cars:
+            print(f"Ошибка: машина {vehicle_id} уже существует")
+            return None
+
+        # Загружаем изображение машины, если ещё не загружено
+        if vehicle_number not in car_images_original:
+            try:
+                car_images_original[vehicle_number] = pygame.image.load(f"assets/{vehicle_number}.png").convert_alpha()
+            except Exception as e:
+                print(f"Ошибка загрузки {vehicle_number}.png:", e)
+                return None
+
+        # Создаём новую машину
+        cars[vehicle_id] = {
+            "model": vehicle_number,
+            "x": point_coords[point][0],
+            "y": point_coords[point][1],
+            "route": [],
+            "route_index": 0,
+            "speed": 6.0,
+            "current_node": point,
+            "last_angle": 0
+        }
+        car_counts[vehicle_number] = car_counts.get(vehicle_number, 0) + 1
+        print(f"Машина {vehicle_id} инициализирована на точке {point}")
+
+    else:
+        print(f"Ошибка: неизвестный тип техники {vehicle_id}")
+        return None
+
+    return point
+
+
+def command_clear(parts):
+    """Удаление всей техники указанного типа.
+    Формат: /clear <тип техники>
+    Например: /clear BUS - удалит все автобусы
+             /clear PL - удалит все самолёты
+    """
+    if len(parts) != 1:
+        print("Использование: /clear <тип техники>")
+        return None
+
+    vehicle_type = parts[0].upper()
+    removed_count = 0
+
+    # Удаляем всю технику указанного типа
+    if vehicle_type == "PL":
+        removed_count = len(planes)
+        planes.clear()
+        print(f"Удалено самолётов: {removed_count}")
+    else:
+        # Для остальной техники (BUS, CT, и т.д.)
+        to_remove = []
+        for car_id in cars:
+            if car_id.startswith(vehicle_type):
+                to_remove.append(car_id)
+                model = cars[car_id]["model"]
+                car_counts[model] = max(0, car_counts[model] - 1)
+                removed_count += 1
+
+        for car_id in to_remove:
+            del cars[car_id]
+
+        print(f"Удалено техники типа {vehicle_type}: {removed_count}")
+
+    return removed_count
